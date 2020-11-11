@@ -15,9 +15,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"path/filepath"
@@ -36,7 +36,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	dcontext "github.com/distribution/distribution/v3/context"
-	"github.com/distribution/distribution/v3/registry/client/transport"
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	"github.com/distribution/distribution/v3/registry/storage/driver/base"
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
@@ -93,7 +92,7 @@ var validRegions = map[string]struct{}{}
 // validObjectACLs contains known s3 object Acls
 var validObjectACLs = map[string]struct{}{}
 
-//DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
+// DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
 type DriverParameters struct {
 	AccessKey                   string
 	SecretKey                   string
@@ -118,6 +117,8 @@ type DriverParameters struct {
 	SessionToken                string
 	UseDualStack                bool
 	Accelerate                  bool
+	VirtualHostedStyle          bool
+	CredentialsConfigPath       string
 }
 
 func init() {
@@ -195,6 +196,11 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 	secretKey := parameters["secretkey"]
 	if secretKey == nil {
 		secretKey = ""
+	}
+
+	credentialsConfigPath := parameters["credentialsconfigpath"]
+	if credentialsConfigPath == nil {
+		credentialsConfigPath = ""
 	}
 
 	regionEndpoint := parameters["regionendpoint"]
@@ -417,6 +423,23 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		return nil, fmt.Errorf("the multipartcombinesmallpart parameter should be a boolean")
 	}
 
+	virtualHostedStyleBool := false
+	virtualHostedStyle := parameters["virtualhostedstyle"]
+	switch virtualHostedStyle := virtualHostedStyle.(type) {
+	case string:
+		b, err := strconv.ParseBool(virtualHostedStyle)
+		if err != nil {
+			return nil, fmt.Errorf("the virtualHostedStyle parameter should be a boolean")
+		}
+		virtualHostedStyleBool = b
+	case bool:
+		virtualHostedStyleBool = virtualHostedStyle
+	case nil:
+		// do nothing
+	default:
+		return nil, fmt.Errorf("the virtualHostedStyle parameter should be a boolean")
+	}
+
 	sessionToken := ""
 
 	accelerateBool := false
@@ -460,6 +483,8 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		fmt.Sprint(sessionToken),
 		useDualStackBool,
 		accelerateBool,
+		virtualHostedStyleBool,
+		fmt.Sprint(credentialsConfigPath),
 	}
 
 	return New(params)
@@ -503,6 +528,12 @@ func New(params DriverParameters) (*Driver, error) {
 		return nil, fmt.Errorf("on Amazon S3 this storage driver can only be used with v4 authentication")
 	}
 
+	// Makes no sense to provide access/secret key and the location of a
+	// config file with credentials.
+	if (params.AccessKey != "" || params.SecretKey != "") && params.CredentialsConfigPath != "" {
+		return nil, fmt.Errorf("cannot set both access/secret key and credentials file path")
+	}
+
 	awsConfig := aws.NewConfig()
 
 	if params.AccessKey != "" && params.SecretKey != "" {
@@ -515,6 +546,9 @@ func New(params DriverParameters) (*Driver, error) {
 	}
 
 	if params.RegionEndpoint != "" {
+		if !params.VirtualHostedStyle {
+			awsConfig.WithS3ForcePathStyle(true)
+		}
 		awsConfig.WithEndpoint(params.RegionEndpoint)
 		awsConfig.WithS3ForcePathStyle(params.ForcePathStyle)
 	}
@@ -522,32 +556,35 @@ func New(params DriverParameters) (*Driver, error) {
 	awsConfig.WithS3UseAccelerate(params.Accelerate)
 	awsConfig.WithRegion(params.Region)
 	awsConfig.WithDisableSSL(!params.Secure)
-	if params.UseDualStack {
-		awsConfig.UseDualStackEndpoint = endpoints.DualStackEndpointStateEnabled
+	awsConfig.WithUseDualStack(params.UseDualStack)
+
+	if params.SkipVerify {
+		httpTransport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		awsConfig.WithHTTPClient(&http.Client{
+			Transport: httpTransport,
+		})
 	}
 
-	if params.UserAgent != "" || params.SkipVerify {
-		httpTransport := http.DefaultTransport
-		if params.SkipVerify {
-			httpTransport = &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			}
-		}
-		if params.UserAgent != "" {
-			awsConfig.WithHTTPClient(&http.Client{
-				Transport: transport.NewTransport(httpTransport, transport.NewHeaderRequestModifier(http.Header{http.CanonicalHeaderKey("User-Agent"): []string{params.UserAgent}})),
-			})
-		} else {
-			awsConfig.WithHTTPClient(&http.Client{
-				Transport: transport.NewTransport(httpTransport),
-			})
+	sessionOptions := session.Options{
+		Config: *awsConfig,
+	}
+	if params.CredentialsConfigPath != "" {
+		sessionOptions.SharedConfigState = session.SharedConfigEnable
+		sessionOptions.SharedConfigFiles = []string{
+			params.CredentialsConfigPath,
 		}
 	}
-
-	sess, err := session.NewSession(awsConfig)
+	sess, err := session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new session with aws config: %v", err)
 	}
+
+	if params.UserAgent != "" {
+		sess.Handlers.Build.PushBack(request.MakeAddToUserAgentFreeFormHandler(params.UserAgent))
+	}
+
 	s3obj := s3.New(sess)
 
 	// enable S3 compatible signature v2 signing instead
@@ -606,7 +643,7 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(reader)
+	return io.ReadAll(reader)
 }
 
 // PutContent stores the []byte content at a location designated by "path".
@@ -632,10 +669,9 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 		Key:    aws.String(d.s3Path(path)),
 		Range:  aws.String("bytes=" + strconv.FormatInt(offset, 10) + "-"),
 	})
-
 	if err != nil {
 		if s3Err, ok := err.(awserr.Error); ok && s3Err.Code() == "InvalidRange" {
-			return ioutil.NopCloser(bytes.NewReader(nil)), nil
+			return io.NopCloser(bytes.NewReader(nil)), nil
 		}
 
 		return nil, parseError(path, err)
@@ -696,7 +732,7 @@ func (d *driver) Writer(ctx context.Context, path string, appendParam bool) (sto
 				return nil, parseError(path, err)
 			}
 			allParts = append(allParts, partsList.Parts...)
-			for *resp.IsTruncated {
+			for *partsList.IsTruncated {
 				partsList, err = d.S3.ListParts(&s3.ListPartsInput{
 					Bucket:           aws.String(d.Bucket),
 					Key:              aws.String(key),
@@ -923,53 +959,70 @@ func (d *driver) copy(ctx context.Context, sourcePath string, destPath string) e
 	return err
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // Delete recursively deletes all objects stored at "path" and its subpaths.
 // We must be careful since S3 does not guarantee read after delete consistency
 func (d *driver) Delete(ctx context.Context, path string) error {
 	s3Objects := make([]*s3.ObjectIdentifier, 0, listMax)
-
-	// manually add the given path if it's a file
-	stat, err := d.Stat(ctx, path)
-	if err != nil {
-		return err
-	}
-	if stat != nil && !stat.IsDir() {
-		path := d.s3Path(path)
-		s3Objects = append(s3Objects, &s3.ObjectIdentifier{
-			Key: &path,
-		})
-	}
-
-	// list objects under the given path as a subpath (suffix with slash "/")
-	s3Path := d.s3Path(path) + "/"
+	s3Path := d.s3Path(path)
 	listObjectsInput := &s3.ListObjectsV2Input{
 		Bucket: aws.String(d.Bucket),
 		Prefix: aws.String(s3Path),
 	}
-ListLoop:
+
 	for {
 		// list all the objects
 		resp, err := d.S3.ListObjectsV2(listObjectsInput)
 
 		// resp.Contents can only be empty on the first call
 		// if there were no more results to return after the first call, resp.IsTruncated would have been false
-		// and the loop would be exited without recalling ListObjects
+		// and the loop would exit without recalling ListObjects
 		if err != nil || len(resp.Contents) == 0 {
-			break ListLoop
+			return storagedriver.PathNotFoundError{Path: path}
 		}
 
 		for _, key := range resp.Contents {
+			// Skip if we encounter a key that is not a subpath (so that deleting "/a" does not delete "/ab").
+			if len(*key.Key) > len(s3Path) && (*key.Key)[len(s3Path)] != '/' {
+				continue
+			}
 			s3Objects = append(s3Objects, &s3.ObjectIdentifier{
 				Key: key.Key,
 			})
 		}
+
+		// Delete objects only if the list is not empty, otherwise S3 API returns a cryptic error
+		if len(s3Objects) > 0 {
+			// NOTE: according to AWS docs https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html
+			// by default the response returns up to 1,000 key names. The response _might_ contain fewer keys but it will never contain more.
+			// 10000 keys is coincidentally (?) also the max number of keys that can be deleted in a single Delete operation, so we'll just smack
+			// Delete here straight away and reset the object slice when successful.
+			resp, err := d.S3.DeleteObjects(&s3.DeleteObjectsInput{
+				Bucket: aws.String(d.Bucket),
+				Delete: &s3.Delete{
+					Objects: s3Objects,
+					Quiet:   aws.Bool(false),
+				},
+			})
+			if err != nil {
+				return err
+			}
+
+			if len(resp.Errors) > 0 {
+				// NOTE: AWS SDK s3.Error does not implement error interface which
+				// is pretty intensely sad, so we have to do away with this for now.
+				errs := make([]error, 0, len(resp.Errors))
+				for _, err := range resp.Errors {
+					errs = append(errs, errors.New(err.String()))
+				}
+				return storagedriver.Errors{
+					DriverName: driverName,
+					Errs:       errs,
+				}
+			}
+		}
+		// NOTE: we don't want to reallocate
+		// the slice so we simply "reset" it
+		s3Objects = s3Objects[:0]
 
 		// resp.Contents must have at least one element or we would have returned not found
 		listObjectsInput.StartAfter = resp.Contents[len(resp.Contents)-1].Key
@@ -981,35 +1034,17 @@ ListLoop:
 		}
 	}
 
-	total := len(s3Objects)
-	if total == 0 {
-		return storagedriver.PathNotFoundError{Path: path}
-	}
-
-	// need to chunk objects into groups of 1000 per s3 restrictions
-	for i := 0; i < total; i += 1000 {
-		_, err := d.S3.DeleteObjects(&s3.DeleteObjectsInput{
-			Bucket: aws.String(d.Bucket),
-			Delete: &s3.Delete{
-				Objects: s3Objects[i:min(i+1000, total)],
-				Quiet:   aws.Bool(false),
-			},
-		})
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // URLFor returns a URL which may be used to retrieve the content stored at the given path.
 // May return an UnsupportedMethodErr in certain StorageDriver implementations.
 func (d *driver) URLFor(ctx context.Context, path string, options map[string]interface{}) (string, error) {
-	methodString := "GET"
+	methodString := http.MethodGet
 	method, ok := options["method"]
 	if ok {
 		methodString, ok = method.(string)
-		if !ok || (methodString != "GET" && methodString != "HEAD") {
+		if !ok || (methodString != http.MethodGet && methodString != http.MethodHead) {
 			return "", storagedriver.ErrUnsupportedMethod{}
 		}
 	}
@@ -1026,12 +1061,12 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 	var req *request.Request
 
 	switch methodString {
-	case "GET":
+	case http.MethodGet:
 		req, _ = d.S3.GetObjectRequest(&s3.GetObjectInput{
 			Bucket: aws.String(d.Bucket),
 			Key:    aws.String(d.s3Path(path)),
 		})
-	case "HEAD":
+	case http.MethodHead:
 		req, _ = d.S3.HeadObjectRequest(&s3.HeadObjectInput{
 			Bucket: aws.String(d.Bucket),
 			Key:    aws.String(d.s3Path(path)),
@@ -1077,7 +1112,7 @@ func (d *driver) doWalk(parentCtx context.Context, objectCount *int64, path, pre
 		// the most recent skip directory to avoid walking over undesirable files
 		prevSkipDir string
 	)
-	prevDir = prefix + path
+	prevDir = strings.Replace(path, d.s3Path(""), prefix, 1)
 
 	listObjectsInput := &s3.ListObjectsV2Input{
 		Bucket:  aws.String(d.Bucket),
@@ -1166,16 +1201,22 @@ func (d *driver) doWalk(parentCtx context.Context, objectCount *int64, path, pre
 // directoryDiff finds all directories that are not in common between
 // the previous and current paths in sorted order.
 //
-// Eg 1 directoryDiff("/path/to/folder", "/path/to/folder/folder/file")
-//   => [ "/path/to/folder/folder" ],
-// Eg 2 directoryDiff("/path/to/folder/folder1", "/path/to/folder/folder2/file")
-//   => [ "/path/to/folder/folder2" ]
-// Eg 3 directoryDiff("/path/to/folder/folder1/file", "/path/to/folder/folder2/file")
-//  => [ "/path/to/folder/folder2" ]
-// Eg 4 directoryDiff("/path/to/folder/folder1/file", "/path/to/folder/folder2/folder1/file")
-//   => [ "/path/to/folder/folder2", "/path/to/folder/folder2/folder1" ]
-// Eg 5 directoryDiff("/", "/path/to/folder/folder/file")
-//   => [ "/path", "/path/to", "/path/to/folder", "/path/to/folder/folder" ],
+// # Examples
+//
+//	directoryDiff("/path/to/folder", "/path/to/folder/folder/file")
+//	// => [ "/path/to/folder/folder" ]
+//
+//	directoryDiff("/path/to/folder/folder1", "/path/to/folder/folder2/file")
+//	// => [ "/path/to/folder/folder2" ]
+//
+//	directoryDiff("/path/to/folder/folder1/file", "/path/to/folder/folder2/file")
+//	// => [ "/path/to/folder/folder2" ]
+//
+//	directoryDiff("/path/to/folder/folder1/file", "/path/to/folder/folder2/folder1/file")
+//	// => [ "/path/to/folder/folder2", "/path/to/folder/folder2/folder1" ]
+//
+//	directoryDiff("/", "/path/to/folder/folder/file")
+//	// => [ "/path", "/path/to", "/path/to/folder", "/path/to/folder/folder" ]
 func directoryDiff(prev, current string) []string {
 	var paths []string
 
@@ -1351,7 +1392,7 @@ func (w *writer) Write(p []byte) (int, error) {
 			}
 			defer resp.Body.Close()
 			w.parts = nil
-			w.readyPart, err = ioutil.ReadAll(resp.Body)
+			w.readyPart, err = io.ReadAll(resp.Body)
 			if err != nil {
 				return 0, err
 			}
@@ -1460,6 +1501,30 @@ func (w *writer) Commit() error {
 		completedUploadedParts = append(completedUploadedParts, &s3.CompletedPart{
 			ETag:       part.ETag,
 			PartNumber: part.PartNumber,
+		})
+	}
+
+	// This is an edge case when we are trying to upload an empty chunk of data using
+	// a MultiPart upload. As a result we are trying to complete the MultipartUpload
+	// with an empty slice of `completedUploadedParts` which will always lead to 400
+	// being returned from S3 See: https://docs.aws.amazon.com/sdk-for-go/api/service/s3/#CompletedMultipartUpload
+	// Solution: we upload an empty i.e. 0 byte part as a single part and then append it
+	// to the completedUploadedParts slice used to complete the Multipart upload.
+	if len(w.parts) == 0 {
+		resp, err := w.driver.S3.UploadPart(&s3.UploadPartInput{
+			Bucket:     aws.String(w.driver.Bucket),
+			Key:        aws.String(w.key),
+			PartNumber: aws.Int64(1),
+			UploadId:   aws.String(w.uploadID),
+			Body:       bytes.NewReader(nil),
+		})
+		if err != nil {
+			return err
+		}
+
+		completedUploadedParts = append(completedUploadedParts, &s3.CompletedPart{
+			ETag:       resp.ETag,
+			PartNumber: aws.Int64(1),
 		})
 	}
 
