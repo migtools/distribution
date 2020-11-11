@@ -82,7 +82,7 @@ var validRegions = map[string]struct{}{}
 // validObjectACLs contains known s3 object Acls
 var validObjectACLs = map[string]struct{}{}
 
-//DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
+// DriverParameters A struct that encapsulates all of the driver parameters after all values have been set
 type DriverParameters struct {
 	AccessKey                   string
 	SecretKey                   string
@@ -103,6 +103,7 @@ type DriverParameters struct {
 	UserAgent                   string
 	ObjectACL                   string
 	SessionToken                string
+	CredentialsConfigPath       string
 }
 
 func init() {
@@ -179,6 +180,11 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 	secretKey := parameters["secretkey"]
 	if secretKey == nil {
 		secretKey = ""
+	}
+
+	credentialsConfigPath := parameters["credentialsconfigpath"]
+	if credentialsConfigPath == nil {
+		credentialsConfigPath = ""
 	}
 
 	regionEndpoint := parameters["regionendpoint"]
@@ -361,6 +367,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 		fmt.Sprint(userAgent),
 		objectACL,
 		fmt.Sprint(sessionToken),
+		fmt.Sprint(credentialsConfigPath),
 	}
 
 	return New(params)
@@ -402,6 +409,12 @@ func New(params DriverParameters) (*Driver, error) {
 		(params.RegionEndpoint == "" ||
 			strings.Contains(params.RegionEndpoint, "s3.amazonaws.com")) {
 		return nil, fmt.Errorf("on Amazon S3 this storage driver can only be used with v4 authentication")
+	}
+
+	// Makes no sense to provide access/secret key and the location of a
+	// config file with credentials.
+	if (params.AccessKey != "" || params.SecretKey != "") && params.CredentialsConfigPath != "" {
+		return nil, fmt.Errorf("cannot set both access/secret key and credentials file path")
 	}
 
 	awsConfig := aws.NewConfig()
@@ -449,7 +462,16 @@ func New(params DriverParameters) (*Driver, error) {
 		}
 	}
 
-	sess, err = session.NewSession(awsConfig)
+	sessionOptions := session.Options{
+		Config: *awsConfig,
+	}
+	if params.CredentialsConfigPath != "" {
+		sessionOptions.SharedConfigState = session.SharedConfigEnable
+		sessionOptions.SharedConfigFiles = []string{
+			params.CredentialsConfigPath,
+		}
+	}
+	sess, err = session.NewSessionWithOptions(sessionOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new session with aws config: %v", err)
 	}
