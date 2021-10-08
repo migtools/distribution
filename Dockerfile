@@ -3,9 +3,6 @@ FROM golang:1.13.4-alpine AS build
 ENV DISTRIBUTION_DIR /go/src/github.com/docker/distribution
 ENV DOCKER_BUILDTAGS include_oss include_gcs
 
-ARG GOOS=linux
-ARG GOARCH=amd64
-ARG GOARM=6
 ARG VERSION
 ARG REVISION
 
