@@ -1,51 +1,55 @@
-dist: trusty
-sudo: required
-# setup travis so that we can run containers for integration tests
-services:
-  - docker
-
+os: linux
+services: docker
+dist: focal
 language: go
-
-go:
-  - "1.12.x"
-
-go_import_path: github.com/docker/distribution
-
-addons:
-  apt:
-    packages:
-      - python-minimal
-
+go: stable
 
 env:
-  - TRAVIS_GOOS=linux DOCKER_BUILDTAGS="include_oss include_gcs" TRAVIS_CGO_ENABLED=1
+  global:
+  - IMAGE: quay.io/konveyor/registry
+  - DEFAULT_BRANCH: master
+  - DOCKERFILE: Dockerfile.ubi
+  - DOCKER_CLI_EXPERIMENTAL: enabled
+  - GOPROXY: https://goproxy.io,direct
 
 before_install:
-  - uname -r
-  - sudo apt-get -q update
+- |
+  if [ "${TRAVIS_BRANCH}" == "${DEFAULT_BRANCH}" ]; then
+    export TAG=latest
+  else
+    export TAG=$(echo "${TRAVIS_BRANCH}" | sed 's|/|_|g')
+  fi
 
-install:
-  - go get -u github.com/vbatts/git-validation
-    # TODO: Add enforcement of license
-    # - go get -u github.com/kunalkushwaha/ltag
-  - cd $TRAVIS_BUILD_DIR
+# Builds routinely fail due to download failures inside alternate arch docker containers
+# Here we are downloading outside the docker container and copying the deps in
+# Also use -v for downloads/builds to stop no output failures from lxd env buffering.
+before_script:
+- go mod vendor -v
+- sed -i 's|go build|go build -v -mod=vendor|g' Makefile
 
 script:
-  - export GOOS=$TRAVIS_GOOS
-  - export CGO_ENABLED=$TRAVIS_CGO_ENABLED
-  - DCO_VERBOSITY=-q script/validate/dco
-  - GOOS=linux GO111MODULE=off script/setup/install-dev-tools
-  - script/validate/vendor
-  - go build -i .
-  - make check
-  - make build
-  - make binaries
-    # Currently takes too long
-    #- if [ "$GOOS" = "linux" ]; then make test-race ; fi
-  - if [ "$GOOS" = "linux" ]; then make coverage ; fi
+- docker build -t ${IMAGE}:${TAG}-${TRAVIS_ARCH} -f ${DOCKERFILE} .
+- if [ -n "${QUAY_ROBOT}" ]; then docker login quay.io -u "${QUAY_ROBOT}" -p ${QUAY_TOKEN}; fi
+- if [ -n "${QUAY_ROBOT}" ]; then docker push ${IMAGE}:${TAG}-${TRAVIS_ARCH}; fi
 
-after_success:
-  - bash <(curl -s https://codecov.io/bash) -F linux
-
-before_deploy:
-    # Run tests with storage driver configurations
+jobs:
+  include:
+  - stage: build images
+    arch: ppc64le
+  - arch: s390x
+  - arch: arm64
+  - arch: amd64
+  - stage: push manifest
+    language: shell
+    arch: amd64
+    before_script: []
+    script:
+    - if [ -n "${QUAY_ROBOT}" ]; then docker login quay.io -u "${QUAY_ROBOT}" -p ${QUAY_TOKEN}; fi
+    - |
+      docker manifest create \
+       ${IMAGE}:${TAG} \
+       ${IMAGE}:${TAG}-x86_64 \
+       ${IMAGE}:${TAG}-ppc64le \
+       ${IMAGE}:${TAG}-s390x \
+       ${IMAGE}:${TAG}-aarch64
+    - if [ -n "${QUAY_ROBOT}" ]; then docker manifest push ${IMAGE}:${TAG}; fi
