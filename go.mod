@@ -54,3 +54,6 @@ require (
 	gopkg.in/check.v1 v1.0.0-20141024133853-64131543e789
 	gopkg.in/yaml.v2 v2.2.8
 )
+
+// CVE-2021-41190
+replace github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2
