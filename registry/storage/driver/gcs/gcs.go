@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
 	"github.com/distribution/distribution/v3/registry/storage/driver/base"
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
@@ -40,8 +41,6 @@ import (
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jwt"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/cloud"
-	"google.golang.org/cloud/storage"
 )
 
 const (
@@ -314,7 +313,7 @@ func (d *driver) Reader(context context.Context, path string, offset int64) (io.
 }
 
 func getObject(client *http.Client, bucket string, name string, offset int64) (*http.Response, error) {
-	// copied from google.golang.org/cloud/storage#NewReader :
+	// copied from cloud.google.com/go/storage#NewReader :
 	// to set the additional "Range" header
 	u := &url.URL{
 		Scheme: "https",
