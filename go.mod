@@ -31,6 +31,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
+require github.com/distribution/distribution/v3 v3.0.0-20220729163034-26163d82560f
+
 require (
 	cloud.google.com/go v0.102.2-0.20220627142403-5be6d33a57cc // indirect
 	cloud.google.com/go/compute v1.7.0 // indirect
@@ -80,3 +82,5 @@ require (
 	google.golang.org/grpc v1.47.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 )
+
+replace github.com/distribution/distribution/v3 => ./
