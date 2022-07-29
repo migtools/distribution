@@ -1,4 +1,4 @@
-module github.com/konveyor/distribution/v3
+module github.com/konveyor/distribution
 
 go 1.18
 
