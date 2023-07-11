@@ -45,11 +45,11 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bitly/go-simplejson v0.5.0 // indirect
+	github.com/bitly/go-simplejson v0.5.1 // indirect
 	github.com/bugsnag/osext v0.0.0-20130617224835-0dd3f918b21b // indirect
 	github.com/bugsnag/panicwrap v0.0.0-20151223152923-e2c28503fcd0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/dnaeon/go-vcr v1.0.1 // indirect
+	github.com/dnaeon/go-vcr v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
