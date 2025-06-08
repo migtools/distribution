@@ -5,7 +5,7 @@ go 1.12
 require (
 	github.com/Azure/azure-sdk-for-go v61.4.0+incompatible
 	github.com/Azure/go-autorest v10.8.1+incompatible // indirect
-	github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d
+	github.com/Shopify/logrus-bugsnag d55aa3c8353b
 	github.com/aws/aws-sdk-go v1.15.11
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
 	github.com/bitly/go-simplejson v0.5.0 // indirect
