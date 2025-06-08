@@ -18,7 +18,7 @@ require (
 	github.com/dgrijalva/jwt-go v0.0.0-20170104182250-a601269ab70c // indirect
 	github.com/dnaeon/go-vcr v1.0.1 // indirect
 	github.com/docker/go-metrics v0.0.0-20180209012529-399ea8c73916
-	github.com/docker/libtrust v0.0.0-20150114040149-fa567046d9b1
+	github.com/docker/libtrust aabc10ec26b7
 	github.com/garyburd/redigo v0.0.0-20150301180006-535138d7bcd7
 	github.com/gofrs/uuid v4.2.0+incompatible // indirect
 	github.com/gorilla/handlers v1.3.0
