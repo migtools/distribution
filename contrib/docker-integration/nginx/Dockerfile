@@ -1,4 +1,4 @@
-FROM nginx:1.9
+FROM nginx:1.29
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY registry.conf /etc/nginx/conf.d/registry.conf
