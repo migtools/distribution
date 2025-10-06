@@ -1,5 +1,4 @@
-#@follow_tag(registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:rhel_8_golang_1.23)
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_golang_1.23 AS builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_golang_1.24 AS builder
 ENV DISTRIBUTION_DIR /go/src/github.com/docker/distribution
 ARG GOOS=linux
 ARG GOARCH=amd64
@@ -20,9 +19,8 @@ ENV GO_BUILD_FLAGS=" -mod=readonly "
 ENV BUILDTAGS=" include_oss include_gcs strictfipsruntime "
 RUN CGO_ENABLED=1 make PREFIX=/go clean binaries
 
-#@follow_tag(registry.redhat.io/ubi8/ubi-minimal)
-FROM registry.redhat.io/ubi8/ubi-minimal:latest
-RUN microdnf -y install httpd-tools && microdnf clean all
+FROM registry.redhat.io/ubi8/ubi:latest
+RUN dnf -y install httpd-tools && dnf clean all
 COPY --from=builder /workspace/src/github.com/docker/distribution/cmd/registry/config-dev.yml /etc/docker/registry/config.yml
 COPY --from=builder /workspace/src/github.com/docker/distribution/bin/registry /bin/registry
 COPY LICENSE /licenses/
