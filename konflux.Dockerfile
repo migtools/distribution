@@ -29,3 +29,10 @@ EXPOSE 5000
 USER 65534:65534
 ENTRYPOINT ["registry"]
 CMD ["serve", "/etc/docker/registry/config.yml"]
+
+LABEL \
+        "io.k8s.description"="Migration Toolkit for Containers Registry" \
+        "io.k8s.display-name"="Migration Toolkit for Containers" \
+        "io.openshift.tags"="migration" \
+        "summary"="Migration Toolkit for Containers Registry" \
+        "io.openshift.maintainer.project"="MIG"
