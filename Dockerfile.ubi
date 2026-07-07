@@ -9,6 +9,7 @@ COPY . $DISTRIBUTION_DIR
 RUN CGO_ENABLED=0 make PREFIX=/go clean binaries && file ./bin/registry | grep "statically linked"
 
 FROM registry.access.redhat.com/ubi8-minimal
+RUN microdnf upgrade -y python3-urllib3 && microdnf clean all
 RUN microdnf -y install  ca-certificates httpd-tools
 COPY cmd/registry/config-dev.yml /etc/docker/registry/config.yml
 COPY --from=builder /go/src/github.com/docker/distribution/bin/registry /bin/registry
