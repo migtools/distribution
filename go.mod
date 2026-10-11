@@ -1,11 +1,11 @@
 module github.com/docker/distribution
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/Azure/azure-sdk-for-go v61.4.0+incompatible
 	github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d
-	github.com/aws/aws-sdk-go v1.27.0
+	github.com/aws/aws-sdk-go v1.15.11
 	github.com/bshuster-repo/logrus-logstash-hook v0.4.1
 	github.com/bugsnag/bugsnag-go v0.0.0-20141110184014-b1d153021fcd
 	github.com/denverdino/aliyungo v0.0.0-20190125010748-a747050bb1ba
@@ -13,20 +13,20 @@ require (
 	github.com/docker/libtrust v0.0.0-20150114040149-fa567046d9b1
 	github.com/garyburd/redigo v0.0.0-20150301180006-535138d7bcd7
 	github.com/gorilla/handlers v1.3.0
-	github.com/gorilla/mux v1.7.3
-	github.com/mitchellh/mapstructure v1.5.0
+	github.com/gorilla/mux v1.7.2
+	github.com/mitchellh/mapstructure v1.1.2
 	github.com/ncw/swift v1.0.47
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.3
 	github.com/yvasiyarov/gorelic v0.0.0-20141212073537-a9bba5b9ab50
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.55.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.278.0
 	google.golang.org/cloud v0.0.0-20151119220103-975617b05ea8
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v2 v2.2.8
 )
 
 require (
@@ -34,35 +34,36 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Azure/go-autorest v10.8.1+incompatible // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
 	github.com/bitly/go-simplejson v0.5.0 // indirect
 	github.com/bugsnag/osext v0.0.0-20130617224835-0dd3f918b21b // indirect
 	github.com/bugsnag/panicwrap v0.0.0-20151223152923-e2c28503fcd0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/dgrijalva/jwt-go v0.0.0-20170104182250-a601269ab70c // indirect
 	github.com/dnaeon/go-vcr v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
+	github.com/go-ini/ini v1.25.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gofrs/uuid v4.2.0+incompatible // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/jmespath/go-jmespath v0.0.0-20160803190731-bd40a432e4c7 // indirect
+	github.com/konsorten/go-windows-terminal-sequences v1.0.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mitchellh/osext v0.0.0-20151018003038-5e2d6d41470f // indirect
-	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.21.1 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.63.0 // indirect
-	github.com/prometheus/procfs v0.16.0 // indirect
+	github.com/prometheus/client_golang v0.0.0-20180209125602-c332b6f63c06 // indirect
+	github.com/prometheus/client_model v0.0.0-20171117100541-99fa1f4be8e5 // indirect
+	github.com/prometheus/common v0.0.0-20180110214958-89604d197083 // indirect
+	github.com/prometheus/procfs v0.0.0-20180125133057-cb4147076ac7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/smartystreets/goconvey v0.0.0-20190330032615-68dc04aab96a // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/yvasiyarov/go-metrics v0.0.0-20140926110328-57bccd1ccd43 // indirect
 	github.com/yvasiyarov/newrelic_platform_go v0.0.0-20140908184405-b21fdbd4370f // indirect
@@ -71,9 +72,9 @@ require (
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
