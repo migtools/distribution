@@ -16,7 +16,7 @@ RUN chown -R 1001:0 /workspace/
 USER 1001
 ENV GOEXPERIMENT strictfipsruntime
 ENV GO_BUILD_FLAGS=" -mod=readonly "
-ENV BUILDTAGS=" include_oss include_gcs strictfipsruntime "
+ENV BUILDTAGS=" include_oss strictfipsruntime "
 RUN CGO_ENABLED=1 make PREFIX=/go clean binaries
 
 FROM registry.redhat.io/ubi8/ubi:latest
